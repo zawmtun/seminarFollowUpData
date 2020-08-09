@@ -39,13 +39,7 @@ usethis::create_package(getwd())
 file.edit("DESCRIPTION")
 ```
 
-3. Create a license if necessary
-
-```{r}
-usethis::use_mit_license(name = "Zaw Myo Tun")
-```
-
-4. Create a folder structure. Edit the structure as necessary.
+3. Create a folder structure. Edit the structure as necessary.
 
 ```{r}
 create_analysis <- function() {
@@ -63,7 +57,7 @@ create_analysis <- function() {
 invisible(create_analysis())
 ```
 
-5. Create a README file and add title and other relevant details
+4. Create a README file and add title and other relevant details
 
 ```{r}
 usethis::use_readme_md()
@@ -165,7 +159,12 @@ If you are collaborating openly and creating a public GitHub repo, you can add a
 usethis::use_ccby_license(name = "<your_name>")
 ```
 
-Add the following to `README.md`
+Copy and paste the following to `README.md`
+
+```{r}
+file.edit("README.md")
+```
+
 
 -------------------------------------------------------------------
 ## Licensees
