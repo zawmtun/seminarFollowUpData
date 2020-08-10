@@ -1,58 +1,106 @@
+library(dplyr)
+library(tidyr)
 
 
-# Dummy data set
+# Dummy data set ----------------------------------------------------------
 
-dummy_date <- lubridate::dmy("2-12-11") + seq_len(90)
-gen_date <- function(d, length) d + cumsum(sample(seq_len(30), length))
+set.seed(2020)
+freq <- sample(5:10, 10, replace = TRUE)
+id <- rep(seq_len(length(freq)), times = freq)
+fu <- unlist(sapply(freq, seq_len))
+result <- unlist(sapply(
+  freq,
+  function(n) sample(x = c("pos", "neg"),
+                     size = n,
+                     replace = TRUE,
+                     prob = c(.2, .8)),
+  simplify = TRUE
+))
 
-dat <- data.frame(
-  id = rep(1:4, times = c(5, 8, 5, 10)),
-  d = as.Date(unlist(mapply(gen_date, sample(dummy_date, 4), c(5, 8, 5, 10))), origin = "1970-01-01"),
-  result = unlist(lapply(
-    c(5, 8, 5, 10),
-    function(x) sample(x = c("pos", "neg"), size = x, replace = TRUE, prob = c(.1, .9))
-  ))
+d_ue <- lubridate::dmy("2-12-11") + unlist(
+  mapply(function(x, y) x + cumsum(sample(seq_len(30), y)),
+         sample(seq_len(90), length(freq)), freq)
 )
 
+d_e <- lubridate::dmy("2-12-11") + unlist(
+  mapply(function(x, y) x + seq_len(y),
+         sample(seq_len(90), length(freq)), freq)
+)
 
-# identify positive participants
-pos_id <- dat %>%
-  filter(result == "pos") %>%
-  distinct(id)
+# Follow-up dates with unequal interval
+dat_ue <- data.frame(id = id, d = d_ue, fu = fu, result = result)
+# Follow-up dates with equal interval
+dat_e <- data.frame(id = id, d = d_e, fu = fu, result = result)
 
-pos <- dat %>%
-  arrange(id, d) %>%
 
-  # Filter positive participants
-  filter(id %in% pos_id$id) %>%
+# 1. Remove patients with a positive result at the first follow-up --------
 
+# Method 1
+
+first_pos <- dat_ue %>%
+  group_by(id) %>%
+  slice(1) %>%
+  filter(result == "pos")
+
+dat_ue_1 <- dat_ue %>%
+  filter(!id %in% first_pos$id)
+
+# Method 2
+
+dat_ue_1 <- dat_ue %>%
+  group_by(id) %>%
+  filter(!cumany(row_number() == 1 & result == "pos")) %>%
+  ungroup()
+
+# 2. Identify first positive and remove the following rows ----------------
+
+dat_ue_2 <- dat_ue_1 %>%
+  group_by(id) %>%
+  filter(cumsum(result == "pos") <= 1) %>%
+  ungroup()
+
+
+# 3. Calculate the follow-up duration in days -----------------------------
+
+fu_duration <- dat_ue_2 %>%
+  group_by(id) %>%
+  mutate(start = min(d),
+         end = max(d),
+         pos_result = max(result == "pos")) %>%
+  distinct(id, start, end, pos_result) %>%
+  mutate(duration = difftime(end, start, units = "days"))
+
+
+# 4. Calculate time taken to change results -------------------------------
+# Note a person may switch between pos and neg multiple times
+# Calculate (1) the time taken for each change and
+# (2) the time between the last change and last follow-up date
+
+dat_ue_3 <- dat_ue_1 %>%
   group_by(id) %>%
   mutate(
-    instance = row_number(),
     flag = cumsum(result != lead(result)),
-    flag = lag(flag, default = 0),
-    d1 = if_else(flag != 0 & flag != lag(flag), lag(d), NA_real_),
-    d2 = d1 + (d - d1)/2,
-    d2 = if_else(flag == 0, min(d), d2)
+    flag = lag(flag, default = 0)
   ) %>%
-
   group_by(id, flag) %>%
-  mutate(d2 = min(d2, na.rm = TRUE)) %>%
-  rename(start = d2) %>%
-
+  mutate(d1 = min(d)) %>%
   group_by(id) %>%
-  mutate(across(c(instance, result, flag, start), lead),
-         lastdate = max(d),
-         end = lead(start),
-         end = if_else(is.na(end), lastdate, end)) %>%
+  mutate(d1 = if_else(fu == max(fu), d, d1)) %>%
+  distinct(id, flag, d1, .keep_all = TRUE) %>%
+  mutate(d2 = lead(d1),
+         result = lead(result),
+         duration = difftime(d2, d1, units = "days")) %>%
   slice(-n()) %>%
+  select(id, d1, d2, result, duration)
 
-  group_by(id, flag) %>%
-  mutate(start = min(start),
-         end = max(end)) %>%
-  ungroup() %>%
 
-  distinct(id, result, start, end, .keep_all = TRUE) %>%
-  select(-c(d, flag, d1, lastdate)) %>%
-  mutate(fu_time = difftime(end, start, units = "days"),
-         fu_time = as.double(fu_time))
+# For dataset with equal fullow-up intervals ------------------
+
+# Convert long to wide and remove patients with first positive ------------
+
+dat_e_1 <- dat_e %>%
+  pivot_wider(names_from = fu,
+              values_from = c(d, result)) %>%
+
+  # Remove patients with a positive result at the first follow-up
+  filter(result_1 != "pos")
