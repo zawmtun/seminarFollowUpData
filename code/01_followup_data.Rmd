@@ -1,0 +1,519 @@
+---
+title: "Follow-up epi study data manipulation"
+author: "Zaw Myo Tun"
+date: "15 August 2020"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE, message = FALSE, warning = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+```{r packages}
+pkgs <- c(
+  "dplyr",
+  "tidyr",
+  "tibble",
+  "epiR",
+  "broom"
+)
+
+invisible(sapply(pkgs, library, character.only = TRUE))
+```
+
+In this session, we will learn some tools and tricks in analysing follow-up data using two by two contingency tables. This kind of data are typically collected from a cohort study or randomised controlled trials.
+
+**Pre-requisite:** I assume you are familiar with the basics of R and `{dplyr}` package. If you want to learn more about R basics and `{dplyr}`, you can take a look at Chapter 3, 4, and 5 of the online book [R for Data Science](https://r4ds.had.co.nz/) by Garrett Grolemund and Hadley Wickham.  
+
+## Objectives
+
+1. Become familiar with some functions that are helpful in filtering rows.
+2. Compute person-days at risk to the first positive result among participants with a negative result at baseline
+3. Compare incidence rates using person-days from objective 2
+4. Compute total person-days at risk for repeated positive results
+
+## Some useful functions
+
+In this section, I will discuss a few functions that we will use in later part of the tutorial. You might feel some of these functions are out of place and random for now. But it will make sense in the end. I promise!
+
+### Cumulative sum
+
+The first function is `cumsum()`. It takes a numeric vector and returns its cumulative sum. This is straightforward.
+
+```{r}
+x <- c(1, 3, 6, 2, 2)
+cumsum(x)
+cumsum(c(0, 1, 0, 0, 1, 0, 1))
+```
+
+### Select elements of a vector after the first `TRUE` inclusive
+
+In `x` defined above, let's say we find the value `6` and select the elements that comes after it. That is, we will keep `6, 2, 2` and remove `1, 3`. For a single vector, we can do it using the position indexes.
+
+```{r}
+x
+x[c(3:5)]
+```
+
+But this approach cannot scale -- for multiple vectors, one must manually look for the position of `6` and type in the index numbers. We need a different approach.   
+
+`cumany()` comes to the rescue. It takes a logical vector and returns a logical vector which are `TRUE` for all elements after the first `TRUE`, inclusive, in the input. We can then use the output to select the elements from the vector.
+
+```{r}
+x
+x == 6
+cumany(x == 6)
+x[cumany(x == 6)]
+
+y <- 1:10
+y == 6
+cumany(y == 6)
+y[cumany(y == 6)]
+```
+
+Quiz: What if we want the opposite? That is, we want to keep the elements before the first `TRUE`.
+
+```{r}
+# Hint: use "!" (NOT operator)
+x
+!cumany(x == 6)
+x[!cumany(x == 6)]
+
+y
+!cumany(y == 6)
+y[!cumany(x == 6)]
+```
+
+### Compare a value with one before or after it
+
+Sometimes, we want to know when a result changed from negative to positive or vice versa. Then, we compare a test result with the next one. How do we do it in R? One way is to use `lead()` and `lag()` form `{dplyr}`.  
+
+`lag()` shifts the elements of a vector toward higher index numbers by one position. Note that the empty element at the first index is filled with `NA` and the last element is truncated as `lag()` maintains the same length as the input vector.
+
+```{r}
+x <- c(0, 0, 1, 0, 0, 1)
+x
+lag(x)
+```
+
+By comparing `x` and `lag(x)`, we know that values of x changed at the third, fourth, and sixth positions.
+
+```{r}
+x
+x != lag(x)
+```
+
+`lead()` does the opposite of `lag()` -- it shifts the elements by one position with lower index number.
+
+```{r}
+x
+lead(x)
+x != lead(x)
+```
+
+By default, `lead()` and `lag()` shift the elements by one position. We can change it by specifying a positive integer to `n =` argument. Also, the empty positions are filled with `NA` by default after shifting. We can change that in `default =` argument.  
+ 
+```{r}
+x
+lag(x)
+lag(x, n = 3)
+lag(x, n = 3, default = 999)
+
+lead(x)
+lead(x, n = 3)
+lead(x, n = 3, default = 999)
+```
+ 
+## Two example datasets
+
+```{r readdata}
+dat_ue <- readr::read_csv(here::here("data", "derived_data", "unequal_interval.csv"))
+dat_e <- readr::read_csv(here::here("data", "derived_data", "equal_interval.csv"))
+```
+
+Both datasets have the same columns:
+
+1. `id`: Study ID
+2. `exposed`: Exposure status (0: Not exposed, 1: Exposed)
+2. `d`: Follow-up date
+3. `fu`: Follow-up instance
+4. `result`: Test result (neg: Negative, pos: Positive)
+
+The main difference between the two datasets is that follow-up dates are equally spaced in one but not in the other.  
+
+**Dataset 1: Unequal follow-up interval**
+
+```{r}
+head(dat_ue)
+```
+
+**Dataset 2: Equal follow-up interval**
+
+```{r}
+head(dat_e)
+```
+
+## Unequal follow-up interval
+
+Let's start with the first dataset (`dat_ue`). Our objective is to calculate incidence rate among participants with a negative result at baseline.  
+
+### Identify and remove the participants with a positive result at baseline
+
+First, let's see how many participants were there in the dataset?
+
+```{r}
+# Number of unique IDs
+dat_ue %>% 
+  distinct(id) %>% 
+  nrow()
+```
+
+Let's check how many participants (if any) had a positive result at baseline?
+
+```{r}
+dat_ue %>% 
+  filter(fu == 1) %>% 
+  count(result)
+```
+
+Four were positive at baseline. Since they are ineligible, we need to remove them. We can do it using two approaches. The first approach is to identify the ineligible participants first and then filter them out from the dataset using `%in%` operator.
+
+```{r}
+first_pos <- dat_ue %>% 
+  filter(fu == 1 & result == "pos")
+
+dat_ue_1 <- dat_ue %>%
+  filter(!id %in% first_pos$id)
+```
+
+Let's check if it's done correctly.
+
+```{r}
+dat_ue_1 %>% 
+  filter(fu == 1) %>% 
+  count(result)
+```
+
+A second approach is to use `cumany()` and `group_by()`. `group_by(id)` call group the rows by `id`. Recall that `cumany()` look for the first `TRUE` element starting from the first index. In `cumany()` call, we identify participants with a positive result at the first follow-up instance and it marks `TRUE` for the remaining rows of such participants -- `FALSE` for other participants.  
+
+Using `filter()` now would retain rows of participants with a positive result at the first follow-up instance. This is opposite of what we wanted. So, we need to flip the logical vector using NOT ("!") operator.
+
+```{r}
+dat_ue_1 <- dat_ue %>%
+  group_by(id) %>%
+  filter(!cumany(fu == 1 & result == "pos")) %>%
+  ungroup()
+```
+
+Let's check if it's done correctly.
+
+```{r}
+dat_ue_1 %>% 
+  filter(fu == 1) %>% 
+  count(result)
+```
+
+Separately, both approach may seem similar in terms of number of lines and complexity of code. Personally, the second approach seems more elegant in that subsequent operations can be chained together seamlessly without a need to create a separate vector to identify the ineligible participants.
+
+### Remove the rows after the positive result among cases
+
+Now, let's count the positive cases among eligible participants.
+
+```{r}
+dat_ue_1 %>% 
+  filter(result == "pos") %>% 
+  distinct(id) %>% 
+  nrow()
+```
+
+Among 11 eligible participants, 7 had at least one positive result throughout the follow-up period. Since we only want to compute incidence rate to the first positive result, we will identify the first positive result and remove the sequent rows.  
+
+We first call `result == "pos"` which returns a logical vector. When we pass the vector to `cumsum()`, it was coerced into integer (`FALSE` to `0` and `TRUE` to `1`) before calculating cumulative sum. Rows with cumulative sum of one indicates both the first positive result and the negative results following it. We need to filter out the latter.
+
+```{r}
+dat_ue_2 <- dat_ue_1 %>%
+  group_by(id) %>%
+  mutate(flag = cumsum(result == "pos")) %>% 
+  filter(flag <= 1) %>%
+  filter(!(flag == 1 & result == "neg")) %>% 
+  ungroup()
+
+head(dat_ue_2)
+```
+
+### Compute person-days at risk to the first positive result
+
+To compute person-days at risk, we first need to determine follow-up start and end dates for each participant, using `min()` and `max()` over date variable, respectively. The expression `result == "pos"` converts positive results into 1 which is repeated across the rows for each participant who had a positive result. At this point, values for exposure status, result, and start/end follow-up dates were the same across the rows for each participant. We remove duplicated rows using `distinct()`. Finally, we compute the person-days by finding the difference between start and end dates using `difftime()`. This creates `difftime` class column which cannot be used in summary computation. So, it is converted to double.  
+
+```{r}
+dat_ue_3 <- dat_ue_2 %>%
+  group_by(id) %>%
+  mutate(start = min(d),
+         end = max(d),
+         result = max(result == "pos")) %>%
+  ungroup() %>% 
+  distinct(id, exposed, start, end, result) %>%
+  mutate(duration = as.double(difftime(end, start, units = "days")))
+
+dat_ue_3
+```
+
+### Compare incidence rates for exposed and unexposed
+
+To compute incidence rates by exposure status, we use `epi.2by2()` from `{epiR}`. Take a look at the help file of the function (type `?epi.2by2` in the console). The first argument is `dat =` which accepts a `table` class object containing frequency numbers of a two by two contingency table. Here is a relevant example from the help file.  
+
+```{r}
+dat <- as.table(matrix(c(136,22050,1709,127650), nrow = 2, byrow = TRUE))
+
+class(dat)
+dim(dat)
+dat
+```
+
+The `table` should look like the above -- 2 by 2 dimension; the outcome in columns; the exposure in rows. It was created by converting a matrix of four numbers as a `table`.  
+
+Now, let's create a similar contingency table using `summarise()` from `{dplyr}`.  
+
+```{r}
+tab_df <- dat_ue_3 %>% 
+  group_by(exposed) %>% 
+  summarise(pos = sum(result),
+            fu = sum(duration))
+
+tab_df
+```
+
+This contingency table seems similar to the one above. But there are two problems. Let's check the class and dimension of `tab_df`.
+
+```{r}
+dim(tab_df)
+class(tab_df)
+```
+
+1. It has 3 columns, instead of 2. Actually, the exposed column should be row names, instead of a column.
+2. Being part of Tidyverse, `summarise()` returns a dataframe, not a matrix/table.
+
+We convert exposed column to row names using `column_to_rownames("exposed")`. That solves the first problem. It turns out that a dataframe can be converted to a matrix using `as.matrix()`. We can then convert this matrix to a table using `as.table()`. Viola! We get the table for `epi.2by2()`.
+
+```{r}
+tab <- tab_df %>% 
+  column_to_rownames("exposed") %>%  # Convert a column to row names
+  as.matrix() %>%  # Convert to matrix
+  as.table() # Convert to a table
+
+class(tab)
+dim(tab)
+tab
+```
+
+Then, we feed `tab` to `epi.2by2()`. We tell the function that this is a cohort study with follow-up time; 95% confidence level; 1000 unit time; outcome displayed as columns in the table.
+
+```{r}
+tab_epi <- epi.2by2(dat = tab,
+                    method = "cohort.time",
+                    units = 100,
+                    outcome = "as.columns")
+```
+
+The output shows that incidence rate among exposed and unexposed were 1.04 and 1.01 per 100 person-days, respectively. Incidence rate ratio was 1.03 (95% CI: 0.17, 10.83). If you want to extract the point estimates and CIs, use `tidy()` from `{broom}`.
+
+
+```{r}
+tab_epi_tidy <- tidy(tab_epi)
+
+tab_epi_tidy
+```
+
+I will close this section by demonstrating that the above steps can be chained up together easily.
+
+```{r}
+tab_epi <- dat_ue_3 %>% 
+  group_by(exposed) %>% 
+  summarise(pos = sum(result),
+            fu = sum(duration)) %>% 
+  column_to_rownames("exposed") %>% 
+  as.matrix() %>% 
+  as.table() %>% 
+  epi.2by2(method = "cohort.time",
+           units = 100,
+           outcome = "as.columns")
+
+tab_epi
+```
+
+### Calculate total person-days at risk for repeated positive results
+
+Sometimes, we want to compute person-time for repeated positive results. Let's look at how it can be done.  
+
+First, let's go back the original dataframe `dat_ue_1` where we have removed the ineligible participants. Here is what it looks like.
+
+```{r echo = FALSE}
+head(dat_ue_1, 16)
+```
+
+To get ready for computing person-days at risk, we need to turn `dat_ue_1` into this:
+
+```{r echo = FALSE}
+head(readRDS(here::here("data", "derived_data", "repeated_positive.rds")), 5)
+```
+
+
+
+We do it in a series of steps. These are a little bit tricky. Please pay attention to the changes in each step. You may need to view the dataset after executing each step. One easy trick to view the dataset is to click on the dataframe name while pressing Control key on your keyboard.   
+
+1. Capture the sequence of results - Compare the current result with a previous one using `lag()`. This produce a logical vector which is then passed to `cumsum()`.
+
+```{r}
+s1 <- dat_ue_1 %>%
+  group_by(id) %>%
+  mutate(
+    flag = lag(result, default = "missing"),
+    flag = result != flag,
+    seq = cumsum(flag)
+  )
+
+head(s1, 16)
+```
+
+2. Capture the earliest date for each sequence using `min()`. This notes the start date of the sequence as well as the end date of previous sequence.
+
+```{r}
+s2 <- s1 %>%
+  group_by(id, seq) %>%
+  mutate(d1 = min(d))
+
+head(s2, 16)
+```
+
+3. The new date variable did not capture the follow-up end date of the participant. So, update `d1` using the last date from `fu`.
+
+```{r}
+s3 <- s2 %>%
+  group_by(id) %>%
+  mutate(d1 = if_else(fu == max(fu), d, d1))
+
+head(s3, 16)
+```
+
+
+4. Now, `seq` and `d1` have the same values. Remove duplicated rows without removing all the variables. Note  `.keep_all = TRUE` in `distinct()` as it only keeps the columns specified in the call by default.
+
+```{r}
+# Reminder: Grouped by id
+s4 <- s3 %>%
+  distinct(id, seq, d1, .keep_all = TRUE)
+
+head(s4, 10)
+```
+
+5. To compute person-time at risk, we only count the follow-up time when the participant's status is negative -- the time for the positive status should be removed. But all the results structured in a single column makes it difficult to filter the rows. We need two rows for results ("from" and "to") that tell us the direction of change in one row (negative to positive or vice versa). My strategy is to keep the existing result column as `from_res` and create a new column in which result column is pushed by one position for each participant using `lead()`.
+
+```{r}
+# Reminder: Grouped by id
+s5 <- s4 %>%
+  mutate(from_res = result,
+         to_res = lead(result))
+
+head(s5, 10)
+```
+
+6. Similarly, we need two columns for follow-up dates to capture the start and end dates of each result sequence. I use the strategy as step 5 and created a new column `d2` by pushing `d1` one row up. Then, follow-up time in result sequence is the different between `d2` and `d1`.
+
+```{r}
+# Grouped by id
+s6 <- s5 %>%
+  mutate(d2 = lead(d1),
+         duration = as.double(difftime(d2, d1, units = "days")))
+
+head(s6, 10)
+```
+
+7. The last row becomes redundant. So, I remove it using `slice(n())`. Then, only keep the necessary columns.
+
+```{r}
+# Reminder: Grouped by id
+s7 <- s6 %>%
+  slice(-n()) %>% 
+  select(id, exposed, d1, d2, from_res, to_res, duration)
+
+head(s7, 8)
+```
+
+8. Now, remove the rows in which results changed from positive to negative as their follow-up time will not be counted in the person-days at risk.
+
+```{r}
+# Reminder: Grouped by id
+s8 <- s7 %>%
+  filter(!(from_res == "pos" & to_res == "neg")) %>% 
+  ungroup()
+
+head(s8, 5)
+```
+
+It may be easier to understand the above steps if they are put together in a single chain. Here it is.
+
+```{r steps, eval = FALSE}
+s8 <- dat_ue_1 %>%
+  group_by(id) %>%
+  mutate(
+    flag = lag(result, default = "missing"),
+    flag = result != flag,
+    seq = cumsum(flag)
+  ) %>%
+  group_by(id, seq) %>%
+  mutate(d1 = min(d)) %>%
+  group_by(id) %>%
+  mutate(d1 = if_else(fu == max(fu), d, d1)) %>%
+  distinct(id, seq, d1, .keep_all = TRUE) %>%
+  mutate(from_res = result,
+         to_res = lead(result)) %>%
+  mutate(d2 = lead(d1),
+         duration = as.double(difftime(d2, d1, units = "days"))) %>%
+  slice(-n()) %>% 
+  select(id, exposed, d1, d2, from_res, to_res, duration) %>%
+  filter(!(from_res == "pos" & to_res == "neg")) %>% 
+  ungroup()
+```
+
+### Compare the incidence rates among exposed and unexposed participants with repeated positive results
+
+```{r}
+s8 %>% 
+  group_by(exposed) %>% 
+  summarise(pos = sum(to_res == "pos"),
+            fu = sum(duration)) %>% 
+  column_to_rownames("exposed") %>% 
+  as.matrix() %>% 
+  as.table() %>% 
+  epi.2by2(method = "cohort.time",
+           units = 100,
+           outcome = "as.columns")
+
+```
+
+## Equal follow-up interval
+
+```{r}
+# Convert long to wide and remove patients with first positive ------------
+
+dat_e_1 <- dat_e %>%
+  pivot_wider(names_from = fu,
+              values_from = c(d, result)) %>%
+
+  # Remove patients with a positive result at the first follow-up
+  filter(result_1 != "pos")
+
+```
+
+<br/>
+
+**Session info (for reproducibility)**
+
+```{r}
+xfun::session_info()
+```
+
+
