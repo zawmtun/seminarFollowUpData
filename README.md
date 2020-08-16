@@ -12,7 +12,7 @@ The **analysis** directory contains:
 - [:file\_folder: code](/code): Analysis code files (`.R` or `.Rmd`)
 - [:file\_folder: figures](/figures): Plots and other illustrations
 
-Solutions to the exercises can be found [here](https://bit.ly/3iErdF8).
+Rendered html with code and output, except quizzes, can be found [here](https://bit.ly/3iErdF8). Solutions to the quizzes can be found in the RMD file in [:file\_folder: code](/code) with file name ending with solutions.
 
 ## Lab
 
