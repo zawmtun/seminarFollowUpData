@@ -12,7 +12,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```
 
-In this tutorial, we will learn some tools and tricks in analysing follow-up data using two by two contingency tables. This kind of data are typically collected from a cohort study or randomised controlled trials.  
+In this tutorial, I share some functions and tricks to manipulate data for analysis of follow-up data using two by two contingency tables using some mock data. Follow-up data are typically collected from a cohort study or randomised controlled trials.  
 
 You can download all files and data related to this tutorial from [my GitHub repository](https://github.com/zawmtun/seminarFollowUpData.git).  
 
