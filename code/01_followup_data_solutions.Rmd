@@ -14,6 +14,8 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 
 In this tutorial, we will learn some tools and tricks in analysing follow-up data using two by two contingency tables. This kind of data are typically collected from a cohort study or randomised controlled trials.  
 
+You can download all files and data related to this tutorial from [my GitHub repository](https://github.com/zawmtun/seminarFollowUpData.git).  
+
 Throughout the tutorial, function calls are denoted with a pair of parentheses at the end. For example, `sum()`. Packages are marked within a pair of curly brackets. For example, `{dplyr}`. The code can be found in gray boxes. The white boxes with each row preceded by `##` are the outputs of the code.   
 
 **Pre-requisite:** I assume you are familiar with the basics of R and `{dplyr}` package. If you want to learn more about R basics and `{dplyr}`, you can take a look at Chapter 3, 4, and 5 of the online book [R for Data Science](https://r4ds.had.co.nz/) by Garrett Grolemund and Hadley Wickham.  
