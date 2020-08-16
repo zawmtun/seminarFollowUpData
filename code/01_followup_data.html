@@ -371,14 +371,19 @@ summary {
 
 <div id="TOC">
 <ul>
-<li><a href="#objectives">Objectives</a></li>
-<li><a href="#some-useful-functions">Some useful functions</a></li>
-<li><a href="#two-example-datasets">Two example datasets</a></li>
-<li><a href="#unequal-follow-up-interval">Unequal follow-up interval</a></li>
-<li><a href="#equal-follow-up-interval">Equal follow-up interval</a></li>
+<li><a href="#objectives">1. Objectives</a></li>
+<li><a href="#some-useful-functions">2. Some useful functions</a></li>
+<li><a href="#two-example-datasets">3. Two example datasets</a></li>
+<li><a href="#unequal-follow-up-interval">4. Unequal follow-up interval</a></li>
+<li><a href="#equal-follow-up-interval">5. Equal follow-up interval</a></li>
+<li><a href="#conclusion">6. Conclusion</a></li>
 </ul>
 </div>
 
+<p>In this tutorial, we will learn some tools and tricks in analysing follow-up data using two by two contingency tables. This kind of data are typically collected from a cohort study or randomised controlled trials.</p>
+<p>Throughout the tutorial, function calls are denoted with a pair of parentheses at the end. For example, <code>sum()</code>. Packages are marked within a pair of curly brackets. For example, <code>{dplyr}</code>. The code can be found in gray boxes. The white boxes with each row preceded by <code>##</code> are the outputs of the code.</p>
+<p><strong>Pre-requisite:</strong> I assume you are familiar with the basics of R and <code>{dplyr}</code> package. If you want to learn more about R basics and <code>{dplyr}</code>, you can take a look at Chapter 3, 4, and 5 of the online book <a href="https://r4ds.had.co.nz/">R for Data Science</a> by Garrett Grolemund and Hadley Wickham.</p>
+<p>We will use five packages in this tutorial. The code below will automatically load necessary packages. It will install the packages automatically if not found in the system.</p>
 <pre class="r"><code>pkgs &lt;- c(
   &quot;dplyr&quot;,
   &quot;tidyr&quot;,
@@ -387,32 +392,32 @@ summary {
   &quot;broom&quot;
 )
 
+invisible(sapply(pkgs, function(.) if (!requireNamespace(.)) install.packages(.)))
 invisible(sapply(pkgs, library, character.only = TRUE))</code></pre>
-<p>In this session, we will learn some tools and tricks in analysing follow-up data using two by two contingency tables. This kind of data are typically collected from a cohort study or randomised controlled trials.</p>
-<p><strong>Pre-requisite:</strong> I assume you are familiar with the basics of R and <code>{dplyr}</code> package. If you want to learn more about R basics and <code>{dplyr}</code>, you can take a look at Chapter 3, 4, and 5 of the online book <a href="https://r4ds.had.co.nz/">R for Data Science</a> by Garrett Grolemund and Hadley Wickham.</p>
 <div id="objectives" class="section level2">
-<h2>Objectives</h2>
+<h2>1. Objectives</h2>
 <ol style="list-style-type: decimal">
-<li>Become familiar with some functions that are helpful in filtering rows.</li>
+<li>Learn some useful functions helpful in filtering rows</li>
 <li>Compute person-days at risk to the first positive result among participants with a negative result at baseline</li>
 <li>Compare incidence rates using person-days from objective 2</li>
 <li>Compute total person-days at risk for repeated positive results</li>
 </ol>
 </div>
 <div id="some-useful-functions" class="section level2">
-<h2>Some useful functions</h2>
-<p>In this section, I will discuss a few functions that we will use in later part of the tutorial. You might feel some of these functions are out of place and random for now. But it will make sense in the end. I promise!</p>
+<h2>2. Some useful functions</h2>
+<p>In this section, I will discuss a few functions that will come in handy in later part of the tutorial. You might feel that some of these are out of place for now. But it will make sense in the end. I promise!</p>
 <div id="cumulative-sum" class="section level3">
-<h3>Cumulative sum</h3>
+<h3>2.1. Cumulative sum</h3>
 <p>The first function is <code>cumsum()</code>. It takes a numeric vector and returns its cumulative sum. This is straightforward.</p>
 <pre class="r"><code>x &lt;- c(1, 3, 6, 2, 2)
 cumsum(x)</code></pre>
 <pre><code>## [1]  1  4 10 12 14</code></pre>
 <pre class="r"><code>cumsum(c(0, 1, 0, 0, 1, 0, 1))</code></pre>
 <pre><code>## [1] 0 1 1 1 2 2 3</code></pre>
+<p>In the second example, did you notice how <code>cumsum()</code> preserves the sequence of changes between 0 and 1? We will come back to this in working with the example dataset.</p>
 </div>
 <div id="select-elements-of-a-vector-after-the-first-true-inclusive" class="section level3">
-<h3>Select elements of a vector after the first <code>TRUE</code> inclusive</h3>
+<h3>2.2. Select elements of a vector after the first <code>TRUE</code> inclusive</h3>
 <p>In <code>x</code> defined above, let’s say we find the value <code>6</code> and select the elements that comes after it. That is, we will keep <code>6, 2, 2</code> and remove <code>1, 3</code>. For a single vector, we can do it using the position indexes.</p>
 <pre class="r"><code>x</code></pre>
 <pre><code>## [1] 1 3 6 2 2</code></pre>
@@ -435,36 +440,24 @@ y == 6</code></pre>
 <pre><code>##  [1] FALSE FALSE FALSE FALSE FALSE  TRUE  TRUE  TRUE  TRUE  TRUE</code></pre>
 <pre class="r"><code>y[cumany(y == 6)]</code></pre>
 <pre><code>## [1]  6  7  8  9 10</code></pre>
-<p>Quiz: What if we want the opposite? That is, we want to keep the elements before the first <code>TRUE</code>.</p>
-<pre class="r"><code># Hint: use &quot;!&quot; (NOT operator)
-x</code></pre>
-<pre><code>## [1] 1 3 6 2 2</code></pre>
-<pre class="r"><code>!cumany(x == 6)</code></pre>
-<pre><code>## [1]  TRUE  TRUE FALSE FALSE FALSE</code></pre>
-<pre class="r"><code>x[!cumany(x == 6)]</code></pre>
-<pre><code>## [1] 1 3</code></pre>
-<pre class="r"><code>y</code></pre>
-<pre><code>##  [1]  1  2  3  4  5  6  7  8  9 10</code></pre>
-<pre class="r"><code>!cumany(y == 6)</code></pre>
-<pre><code>##  [1]  TRUE  TRUE  TRUE  TRUE  TRUE FALSE FALSE FALSE FALSE FALSE</code></pre>
-<pre class="r"><code>y[!cumany(x == 6)]</code></pre>
-<pre><code>## [1] 1 2 6 7</code></pre>
+<p><strong>Quiz:</strong> What if we want the opposite? That is, we want to keep the elements before the first <code>TRUE</code>.</p>
+<pre class="r"><code># Hint: use &quot;!&quot; (NOT operator)</code></pre>
 </div>
 <div id="compare-a-value-with-one-before-or-after-it" class="section level3">
-<h3>Compare a value with one before or after it</h3>
-<p>Sometimes, we want to know when a result changed from negative to positive or vice versa. Then, we compare a test result with the next one. How do we do it in R? One way is to use <code>lead()</code> and <code>lag()</code> form <code>{dplyr}</code>.</p>
-<p><code>lag()</code> shifts the elements of a vector toward higher index numbers by one position. Note that the empty element at the first index is filled with <code>NA</code> and the last element is truncated as <code>lag()</code> maintains the same length as the input vector.</p>
+<h3>2.3. Compare a value with one before or after it</h3>
+<p>Sometimes, we want to know when a result changed from negative to positive or vice versa. Then, we compare a test result with the next one. How do we do it in R? One way is to use <code>lead()</code> and <code>lag()</code> from <code>{dplyr}</code>.</p>
+<p><code>lag()</code> shifts the elements of a vector toward a higher index number by one position. Note that the empty element at the first index is filled with <code>NA</code> and the last of the shifted elements is truncated as <code>lag()</code> maintains the same length as the input vector.</p>
 <pre class="r"><code>x &lt;- c(0, 0, 1, 0, 0, 1)
 x</code></pre>
 <pre><code>## [1] 0 0 1 0 0 1</code></pre>
 <pre class="r"><code>lag(x)</code></pre>
 <pre><code>## [1] NA  0  0  1  0  0</code></pre>
-<p>By comparing <code>x</code> and <code>lag(x)</code>, we know that values of x changed at the third, fourth, and sixth positions.</p>
+<p>By following <code>TRUE</code> in <code>x != lag(x)</code>, we know that values of x changed at the third, fourth, and sixth positions.</p>
 <pre class="r"><code>x</code></pre>
 <pre><code>## [1] 0 0 1 0 0 1</code></pre>
 <pre class="r"><code>x != lag(x)</code></pre>
 <pre><code>## [1]    NA FALSE  TRUE  TRUE FALSE  TRUE</code></pre>
-<p><code>lead()</code> does the opposite of <code>lag()</code> – it shifts the elements by one position with lower index number.</p>
+<p><code>lead()</code> does the opposite of <code>lag()</code> – it shifts the elements to a lower index number by one position.</p>
 <pre class="r"><code>x</code></pre>
 <pre><code>## [1] 0 0 1 0 0 1</code></pre>
 <pre class="r"><code>lead(x)</code></pre>
@@ -489,7 +482,7 @@ x</code></pre>
 </div>
 </div>
 <div id="two-example-datasets" class="section level2">
-<h2>Two example datasets</h2>
+<h2>3. Two example datasets</h2>
 <pre class="r"><code>dat_ue &lt;- readr::read_csv(here::here(&quot;data&quot;, &quot;derived_data&quot;, &quot;unequal_interval.csv&quot;))
 dat_e &lt;- readr::read_csv(here::here(&quot;data&quot;, &quot;derived_data&quot;, &quot;equal_interval.csv&quot;))</code></pre>
 <p>Both datasets have the same columns:</p>
@@ -500,7 +493,7 @@ dat_e &lt;- readr::read_csv(here::here(&quot;data&quot;, &quot;derived_data&quot
 <li><code>fu</code>: Follow-up instance</li>
 <li><code>result</code>: Test result (neg: Negative, pos: Positive)</li>
 </ol>
-<p>The main difference between the two datasets is that follow-up dates are equally spaced in one but not in the other.</p>
+<p>The main difference between the two datasets is that dates are equally spaced by one day between two successive follow-up instances in one dataset but not in the other. Here are how the datasets look like.</p>
 <p><strong>Dataset 1: Unequal follow-up interval</strong></p>
 <pre class="r"><code>head(dat_ue)</code></pre>
 <pre><code>## # A tibble: 6 x 5
@@ -525,10 +518,10 @@ dat_e &lt;- readr::read_csv(here::here(&quot;data&quot;, &quot;derived_data&quot
 ## 6     1       0 2011-12-31     6 neg</code></pre>
 </div>
 <div id="unequal-follow-up-interval" class="section level2">
-<h2>Unequal follow-up interval</h2>
+<h2>4. Unequal follow-up interval</h2>
 <p>Let’s start with the first dataset (<code>dat_ue</code>). Our objective is to calculate incidence rate among participants with a negative result at baseline.</p>
 <div id="identify-and-remove-the-participants-with-a-positive-result-at-baseline" class="section level3">
-<h3>Identify and remove the participants with a positive result at baseline</h3>
+<h3>4.1. Identify and remove the participants with a positive result at baseline</h3>
 <p>First, let’s see how many participants were there in the dataset?</p>
 <pre class="r"><code># Number of unique IDs
 dat_ue %&gt;% 
@@ -558,8 +551,7 @@ dat_ue_1 &lt;- dat_ue %&gt;%
 ##   result     n
 ##   &lt;chr&gt;  &lt;int&gt;
 ## 1 neg       11</code></pre>
-<p>A second approach is to use <code>cumany()</code> and <code>group_by()</code>. <code>group_by(id)</code> call group the rows by <code>id</code>. Recall that <code>cumany()</code> look for the first <code>TRUE</code> element starting from the first index. In <code>cumany()</code> call, we identify participants with a positive result at the first follow-up instance and it marks <code>TRUE</code> for the remaining rows of such participants – <code>FALSE</code> for other participants.</p>
-<p>Using <code>filter()</code> now would retain rows of participants with a positive result at the first follow-up instance. This is opposite of what we wanted. So, we need to flip the logical vector using NOT (“!”) operator.</p>
+<p>A second approach is to use <code>cumany()</code> and <code>group_by()</code>. <code>group_by(id)</code> groups the rows by <code>id</code>. Recall that <code>cumany()</code> looks for the first <code>TRUE</code> element starting from the first index. In <code>cumany()</code>, we identify participants with a positive result at the first follow-up instance and it marks <code>TRUE</code> in the remaining rows of such participants – <code>FALSE</code> for other participants. Filtering rows with <code>TRUE</code> now would retain rows of participants with a positive result at the first follow-up instance. This is opposite of what we wanted. So, we need to flip the logical vector using NOT (“!”) operator.</p>
 <pre class="r"><code>dat_ue_1 &lt;- dat_ue %&gt;%
   group_by(id) %&gt;%
   filter(!cumany(fu == 1 &amp; result == &quot;pos&quot;)) %&gt;%
@@ -572,10 +564,10 @@ dat_ue_1 &lt;- dat_ue %&gt;%
 ##   result     n
 ##   &lt;chr&gt;  &lt;int&gt;
 ## 1 neg       11</code></pre>
-<p>Separately, both approach may seem similar in terms of number of lines and complexity of code. Personally, the second approach seems more elegant in that subsequent operations can be chained together seamlessly without a need to create a separate vector to identify the ineligible participants.</p>
+<p>Both approaches may seem similar in terms of number of lines and code complexity. Personally, the second approach is more elegant in that subsequent operations can be chained together seamlessly without a need to create a separate vector to identify the ineligible participants.</p>
 </div>
 <div id="remove-the-rows-after-the-positive-result-among-cases" class="section level3">
-<h3>Remove the rows after the positive result among cases</h3>
+<h3>4.2. Remove the rows after the positive result among cases</h3>
 <p>Now, let’s count the positive cases among eligible participants.</p>
 <pre class="r"><code>dat_ue_1 %&gt;% 
   filter(result == &quot;pos&quot;) %&gt;% 
@@ -601,10 +593,11 @@ head(dat_ue_2)</code></pre>
 ## 4     2       0 2012-02-24     2 pos        1
 ## 5     4       1 2012-02-29     1 neg        0
 ## 6     4       1 2012-03-28     2 neg        0</code></pre>
+<p>Notice that the follow-up of participant 1 and 2 ends with the first positive result?</p>
 </div>
 <div id="compute-person-days-at-risk-to-the-first-positive-result" class="section level3">
-<h3>Compute person-days at risk to the first positive result</h3>
-<p>To compute person-days at risk, we first need to determine follow-up start and end dates for each participant, using <code>min()</code> and <code>max()</code> over date variable, respectively. The expression <code>result == &quot;pos&quot;</code> converts positive results into 1 which is repeated across the rows for each participant who had a positive result. At this point, values for exposure status, result, and start/end follow-up dates were the same across the rows for each participant. We remove duplicated rows using <code>distinct()</code>. Finally, we compute the person-days by finding the difference between start and end dates using <code>difftime()</code>. This creates <code>difftime</code> class column which cannot be used in summary computation. So, it is converted to double.</p>
+<h3>4.3. Compute person-days at risk to the first positive result</h3>
+<p>To compute person-days at risk, we first need to determine follow-up start and end dates for each participant, using <code>min()</code> and <code>max()</code> over date column, respectively. The expression <code>result == &quot;pos&quot;</code> converts positive results into 1 which is repeated across the rows for each participant who had a positive result. At this point, values for exposure status, result, and start/end follow-up dates were the same across the rows for each participant. We remove duplicated rows using <code>distinct()</code>. Finally, we compute the person-days at risk by calculating the difference between start and end dates using <code>difftime()</code>. This creates <code>difftime</code> class column which cannot be used in summary computation. So, it is converted to a double.</p>
 <pre class="r"><code>dat_ue_3 &lt;- dat_ue_2 %&gt;%
   group_by(id) %&gt;%
   mutate(start = min(d),
@@ -629,21 +622,22 @@ dat_ue_3</code></pre>
 ##  9    12       0      1 2012-01-13 2012-03-10       57
 ## 10    13       1      1 2012-01-02 2012-02-20       49
 ## 11    14       0      1 2012-03-10 2012-05-25       76</code></pre>
+<p>At this point, the dataset only contains one row per participant.</p>
 </div>
 <div id="compare-incidence-rates-for-exposed-and-unexposed" class="section level3">
-<h3>Compare incidence rates for exposed and unexposed</h3>
-<p>To compute incidence rates by exposure status, we use <code>epi.2by2()</code> from <code>{epiR}</code>. Take a look at the help file of the function (type <code>?epi.2by2</code> in the console). The first argument is <code>dat =</code> which accepts a <code>table</code> class object containing frequency numbers of a two by two contingency table. Here is a relevant example from the help file.</p>
-<pre class="r"><code>dat &lt;- as.table(matrix(c(136,22050,1709,127650), nrow = 2, byrow = TRUE))
+<h3>4.4. Compare incidence rates for exposed and unexposed</h3>
+<p>To compute incidence rates by exposure status, we use <code>epi.2by2()</code> from <code>{epiR}</code>. Take a look at the help file of the function (type <code>?epi.2by2</code> in the console). The first argument is <code>dat =</code> which accepts a <code>table</code> class object containing frequency numbers of a two by two contingency table. Here is how our table should look like.</p>
+<pre class="r"><code>dat &lt;- as.table(matrix(c(5, 480, 2, 198), nrow = 2, byrow = TRUE))
 
 class(dat)</code></pre>
 <pre><code>## [1] &quot;table&quot;</code></pre>
 <pre class="r"><code>dim(dat)</code></pre>
 <pre><code>## [1] 2 2</code></pre>
 <pre class="r"><code>dat</code></pre>
-<pre><code>##        A      B
-## A    136  22050
-## B   1709 127650</code></pre>
-<p>The <code>table</code> should look like the above – 2 by 2 dimension; the outcome in columns; the exposure in rows. It was created by converting a matrix of four numbers as a <code>table</code>.</p>
+<pre><code>##     A   B
+## A   5 480
+## B   2 198</code></pre>
+<p>The <code>table</code> has a dimension of 2 by 2; the outcome in columns; the exposure in rows. It was created by converting a matrix of four numbers as a <code>table</code>.</p>
 <p>Now, let’s create a similar contingency table using <code>summarise()</code> from <code>{dplyr}</code>.</p>
 <pre class="r"><code>tab_df &lt;- dat_ue_3 %&gt;% 
   group_by(exposed) %&gt;% 
@@ -656,16 +650,17 @@ tab_df</code></pre>
 ##     &lt;dbl&gt; &lt;int&gt; &lt;dbl&gt;
 ## 1       0     5   480
 ## 2       1     2   198</code></pre>
-<p>This contingency table seems similar to the one above. But there are two problems. Let’s check the class and dimension of <code>tab_df</code>.</p>
+<p>This contingency table seems similar to the one above. But there are two problems. Let’s check the class and dimensions of <code>tab_df</code>.</p>
 <pre class="r"><code>dim(tab_df)</code></pre>
 <pre><code>## [1] 2 3</code></pre>
 <pre class="r"><code>class(tab_df)</code></pre>
 <pre><code>## [1] &quot;tbl_df&quot;     &quot;tbl&quot;        &quot;data.frame&quot;</code></pre>
-<ol style="list-style-type: decimal">
-<li>It has 3 columns, instead of 2. Actually, the exposed column should be row names, instead of a column.</li>
-<li>Being part of Tidyverse, <code>summarise()</code> returns a dataframe, not a matrix/table.</li>
-</ol>
-<p>We convert exposed column to row names using <code>column_to_rownames(&quot;exposed&quot;)</code>. That solves the first problem. It turns out that a dataframe can be converted to a matrix using <code>as.matrix()</code>. We can then convert this matrix to a table using <code>as.table()</code>. Viola! We get the table for <code>epi.2by2()</code>.</p>
+<ul>
+<li><strong>Problem 1:</strong> It has 3 columns, instead of 2. Actually, the exposed column should be row names, instead of a column.</li>
+<li><strong>Problem 2:</strong> Being part of Tidyverse, <code>summarise()</code> returns a dataframe, not a matrix/table.</li>
+</ul>
+<p>We convert <code>exposed</code> column to row names using <code>column_to_rownames(&quot;exposed&quot;)</code>. That solves the first problem.</p>
+<p>It turns out that a dataframe can be converted to a matrix using <code>as.matrix()</code>. We can then convert this matrix to a table using <code>as.table()</code>. Viola! We get the table for <code>epi.2by2()</code>.</p>
 <pre class="r"><code>tab &lt;- tab_df %&gt;% 
   column_to_rownames(&quot;exposed&quot;) %&gt;%  # Convert a column to row names
   as.matrix() %&gt;%  # Convert to matrix
@@ -679,11 +674,29 @@ class(tab)</code></pre>
 <pre><code>##   pos  fu
 ## 0   5 480
 ## 1   2 198</code></pre>
-<p>Then, we feed <code>tab</code> to <code>epi.2by2()</code>. We tell the function that this is a cohort study with follow-up time; 95% confidence level; 1000 unit time; outcome displayed as columns in the table.</p>
+<p>Then, we feed <code>tab</code> to <code>epi.2by2()</code>. We tell the function that this is a cohort study with follow-up time; 95% confidence level; 100 unit time (days in our example); outcome displayed as columns in the table.</p>
 <pre class="r"><code>tab_epi &lt;- epi.2by2(dat = tab,
                     method = &quot;cohort.time&quot;,
                     units = 100,
-                    outcome = &quot;as.columns&quot;)</code></pre>
+                    outcome = &quot;as.columns&quot;)
+
+tab_epi</code></pre>
+<pre><code>##              Outcome +    Time at risk        Inc rate *
+## Exposed +            5             480              1.04
+## Exposed -            2             198              1.01
+## Total                7             678              1.03
+## 
+## Point estimates and 95% CIs:
+## -------------------------------------------------------------------
+## Inc rate ratio                               1.03 (0.17, 10.83)
+## Attrib rate *                                0.03 (-1.64, 1.70)
+## Attrib rate in population *                  0.02 (-1.57, 1.62)
+## Attrib fraction in exposed (%)               3.03 (-492.31, 90.77)
+## Attrib fraction in population (%)            2.16 (-71.53, 70.53)
+## -------------------------------------------------------------------
+##  Wald confidence limits
+##  CI: confidence interval
+##  * Outcomes per 100 units of population time at risk</code></pre>
 <p>The output shows that incidence rate among exposed and unexposed were 1.04 and 1.01 per 100 person-days, respectively. Incidence rate ratio was 1.03 (95% CI: 0.17, 10.83). If you want to extract the point estimates and CIs, use <code>tidy()</code> from <code>{broom}</code>.</p>
 <pre class="r"><code>tab_epi_tidy &lt;- tidy(tab_epi)
 
@@ -706,28 +719,10 @@ tab_epi_tidy</code></pre>
   as.table() %&gt;% 
   epi.2by2(method = &quot;cohort.time&quot;,
            units = 100,
-           outcome = &quot;as.columns&quot;)
-
-tab_epi</code></pre>
-<pre><code>##              Outcome +    Time at risk        Inc rate *
-## Exposed +            5             480              1.04
-## Exposed -            2             198              1.01
-## Total                7             678              1.03
-## 
-## Point estimates and 95% CIs:
-## -------------------------------------------------------------------
-## Inc rate ratio                               1.03 (0.17, 10.83)
-## Attrib rate *                                0.03 (-1.64, 1.70)
-## Attrib rate in population *                  0.02 (-1.57, 1.62)
-## Attrib fraction in exposed (%)               3.03 (-492.31, 90.77)
-## Attrib fraction in population (%)            2.16 (-71.53, 70.53)
-## -------------------------------------------------------------------
-##  Wald confidence limits
-##  CI: confidence interval
-##  * Outcomes per 100 units of population time at risk</code></pre>
+           outcome = &quot;as.columns&quot;)</code></pre>
 </div>
 <div id="calculate-total-person-days-at-risk-for-repeated-positive-results" class="section level3">
-<h3>Calculate total person-days at risk for repeated positive results</h3>
+<h3>4.5. Calculate total person-days at risk for repeated positive results</h3>
 <p>Sometimes, we want to compute person-time for repeated positive results. Let’s look at how it can be done.</p>
 <p>First, let’s go back the original dataframe <code>dat_ue_1</code> where we have removed the ineligible participants. Here is what it looks like.</p>
 <pre><code>## # A tibble: 16 x 5
@@ -759,10 +754,13 @@ tab_epi</code></pre>
 ## 3     2       0 2012-02-14 2012-02-24 neg      pos          10
 ## 4     2       0 2012-03-01 2012-03-24 neg      pos          23
 ## 5     2       0 2012-05-08 2012-06-17 neg      neg          40</code></pre>
-<p>We do it in a series of steps. These are a little bit tricky. Please pay attention to the changes in each step. You may need to view the dataset after executing each step. One easy trick to view the dataset is to click on the dataframe name while pressing Control key on your keyboard.</p>
-<ol style="list-style-type: decimal">
-<li>Capture the sequence of results - Compare the current result with a previous one using <code>lag()</code>. This produce a logical vector which is then passed to <code>cumsum()</code>.</li>
-</ol>
+<p>We do it in a series of steps. These are a little bit tricky. Please pay attention to the changes in each step. You may need to view the dataset after executing each step.</p>
+<blockquote>
+<p>A useful trick: In RStudio, view the dataset by clicking on the dataframe name while pressing Control key on your keyboard.</p>
+</blockquote>
+<ul>
+<li><strong>Step 1:</strong> Capture the sequence of results - Compare the current result with a previous one using <code>lag()</code>. This produce a logical vector which is then passed to <code>cumsum()</code>.</li>
+</ul>
 <pre class="r"><code>s1 &lt;- dat_ue_1 %&gt;%
   group_by(id) %&gt;%
   mutate(
@@ -792,9 +790,9 @@ head(s1, 16)</code></pre>
 ## 14     2       0 2012-05-08     6 neg    TRUE      5
 ## 15     2       0 2012-06-06     7 neg    FALSE     5
 ## 16     2       0 2012-06-17     8 neg    FALSE     5</code></pre>
-<ol start="2" style="list-style-type: decimal">
-<li>Capture the earliest date for each sequence using <code>min()</code>. This notes the start date of the sequence as well as the end date of previous sequence.</li>
-</ol>
+<ul>
+<li><strong>Step 2:</strong> Capture the earliest date for each sequence using <code>min()</code>. This notes the start date of the sequence as well as the end date of previous sequence.</li>
+</ul>
 <pre class="r"><code>s2 &lt;- s1 %&gt;%
   group_by(id, seq) %&gt;%
   mutate(d1 = min(d))
@@ -820,9 +818,9 @@ head(s2, 16)</code></pre>
 ## 14     2       0 2012-05-08     6 neg    TRUE      5 2012-05-08
 ## 15     2       0 2012-06-06     7 neg    FALSE     5 2012-05-08
 ## 16     2       0 2012-06-17     8 neg    FALSE     5 2012-05-08</code></pre>
-<ol start="3" style="list-style-type: decimal">
-<li>The new date variable did not capture the follow-up end date of the participant. So, update <code>d1</code> using the last date from <code>fu</code>.</li>
-</ol>
+<ul>
+<li><strong>Step 3:</strong> The new date columns did not capture the follow-up end date of the participant. So, update <code>d1</code> using the last date from <code>fu</code>.</li>
+</ul>
 <pre class="r"><code>s3 &lt;- s2 %&gt;%
   group_by(id) %&gt;%
   mutate(d1 = if_else(fu == max(fu), d, d1))
@@ -848,10 +846,10 @@ head(s3, 16)</code></pre>
 ## 14     2       0 2012-05-08     6 neg    TRUE      5 2012-05-08
 ## 15     2       0 2012-06-06     7 neg    FALSE     5 2012-05-08
 ## 16     2       0 2012-06-17     8 neg    FALSE     5 2012-06-17</code></pre>
-<ol start="4" style="list-style-type: decimal">
-<li>Now, <code>seq</code> and <code>d1</code> have the same values. Remove duplicated rows without removing all the variables. Note <code>.keep_all = TRUE</code> in <code>distinct()</code> as it only keeps the columns specified in the call by default.</li>
-</ol>
-<pre class="r"><code># Grouped by id
+<ul>
+<li><strong>Step 4:</strong> Now, <code>seq</code> and <code>d1</code> have the same values. Remove duplicated rows without removing all the columns. Note <code>.keep_all = TRUE</code> in <code>distinct()</code> as it only keeps the columns specified in the call by default.</li>
+</ul>
+<pre class="r"><code># Reminder: Grouped by id
 s4 &lt;- s3 %&gt;%
   distinct(id, seq, d1, .keep_all = TRUE)
 
@@ -870,10 +868,10 @@ head(s4, 10)</code></pre>
 ##  8     2       0 2012-03-24     4 pos    TRUE      4 2012-03-24
 ##  9     2       0 2012-05-08     6 neg    TRUE      5 2012-05-08
 ## 10     2       0 2012-06-17     8 neg    FALSE     5 2012-06-17</code></pre>
-<ol start="5" style="list-style-type: decimal">
-<li>To compute person-time at risk, we only count the follow-up time when the participant’s status is negative – the time for the positive status should be removed. But all the results structured in a single column makes it difficult to filter the rows. We need two rows for results (“from” and “to”) that tell us the direction of change in one row (negative to positive or vice versa). My strategy is to keep the existing result column as <code>from_res</code> and create a new column in which result column is pushed by one position for each participant using <code>lead()</code>.</li>
-</ol>
-<pre class="r"><code># Grouped by id
+<ul>
+<li><strong>Step 5:</strong> To compute person-time at risk, we only count the follow-up time when the participant’s status is negative – the time for the positive status should be removed. But all the results structured in a single column makes it difficult to filter the rows. We need two rows for results (“from” and “to”) that tell us the direction of change in one row (negative to positive or vice versa). My strategy is to keep the existing result column as <code>from_res</code> and create a new column in which result column is pushed by one position for each participant using <code>lead()</code>.</li>
+</ul>
+<pre class="r"><code># Reminder: Grouped by id
 s5 &lt;- s4 %&gt;%
   mutate(from_res = result,
          to_res = lead(result))
@@ -893,9 +891,9 @@ head(s5, 10)</code></pre>
 ##  8     2       0 2012-03-24     4 pos    TRUE      4 2012-03-24 pos      neg   
 ##  9     2       0 2012-05-08     6 neg    TRUE      5 2012-05-08 neg      neg   
 ## 10     2       0 2012-06-17     8 neg    FALSE     5 2012-06-17 neg      &lt;NA&gt;</code></pre>
-<ol start="6" style="list-style-type: decimal">
-<li>Similarly, we need two columns for follow-up dates to capture the start and end dates of each result sequence. I use the strategy as step 5 and created a new column <code>d2</code> by pushing <code>d1</code> one row up. Then, follow-up time in result sequence is the different between <code>d2</code> and <code>d1</code>.</li>
-</ol>
+<ul>
+<li><strong>Step 6:</strong> Similarly, we need two columns for follow-up dates to capture the start and end dates of each result sequence. I use the strategy as step 5 and created a new column <code>d2</code> by pushing <code>d1</code> one row up. Then, follow-up time in result sequence is the different between <code>d2</code> and <code>d1</code>.</li>
+</ul>
 <pre class="r"><code># Grouped by id
 s6 &lt;- s5 %&gt;%
   mutate(d2 = lead(d1),
@@ -917,10 +915,10 @@ head(s6, 10)</code></pre>
 ##  9     2       0 2012-05-08     6 neg    TRUE      5 2012-05-08 neg      neg   
 ## 10     2       0 2012-06-17     8 neg    FALSE     5 2012-06-17 neg      &lt;NA&gt;  
 ## # ... with 2 more variables: d2 &lt;date&gt;, duration &lt;dbl&gt;</code></pre>
-<ol start="7" style="list-style-type: decimal">
-<li>The last row becomes redundant. So, I remove it using <code>slice(n())</code>. Then, only keep the necessary columns.</li>
-</ol>
-<pre class="r"><code># Grouped by id
+<ul>
+<li><strong>Step 7:</strong> The last row becomes redundant. So, I remove it using <code>slice(n())</code>. Then, only keep the necessary columns.</li>
+</ul>
+<pre class="r"><code># Reminder: Grouped by id
 s7 &lt;- s6 %&gt;%
   slice(-n()) %&gt;% 
   select(id, exposed, d1, d2, from_res, to_res, duration)
@@ -938,10 +936,10 @@ head(s7, 8)</code></pre>
 ## 6     2       0 2012-03-01 2012-03-24 neg      pos          23
 ## 7     2       0 2012-03-24 2012-05-08 pos      neg          45
 ## 8     2       0 2012-05-08 2012-06-17 neg      neg          40</code></pre>
-<ol start="8" style="list-style-type: decimal">
-<li>Now, remove the rows in which results changed from positive to negative as their follow-up time will not be counted in the person-days at risk.</li>
-</ol>
-<pre class="r"><code># Grouped by id
+<ul>
+<li><strong>Step 8:</strong> Now, remove the rows in which results changed from positive to negative as their follow-up time will not be counted in the person-days at risk.</li>
+</ul>
+<pre class="r"><code># Reminder: Grouped by id
 s8 &lt;- s7 %&gt;%
   filter(!(from_res == &quot;pos&quot; &amp; to_res == &quot;neg&quot;)) %&gt;% 
   ungroup()
@@ -955,7 +953,7 @@ head(s8, 5)</code></pre>
 ## 3     2       0 2012-02-14 2012-02-24 neg      pos          10
 ## 4     2       0 2012-03-01 2012-03-24 neg      pos          23
 ## 5     2       0 2012-05-08 2012-06-17 neg      neg          40</code></pre>
-<p>It may be easier to understand the above steps if they are put together in a single chain. Here it is.</p>
+<p>It is easier to understand these steps if they are put together in a single chain. Here it is.</p>
 <pre class="r"><code>s8 &lt;- dat_ue_1 %&gt;%
   group_by(id) %&gt;%
   mutate(
@@ -978,47 +976,40 @@ head(s8, 5)</code></pre>
   ungroup()</code></pre>
 </div>
 <div id="compare-the-incidence-rates-among-exposed-and-unexposed-participants-with-repeated-positive-results" class="section level3">
-<h3>Compare the incidence rates among exposed and unexposed participants with repeated positive results</h3>
-<pre class="r"><code>s8 %&gt;% 
-  group_by(exposed) %&gt;% 
-  summarise(pos = sum(to_res == &quot;pos&quot;),
-            fu = sum(duration)) %&gt;% 
-  column_to_rownames(&quot;exposed&quot;) %&gt;% 
-  as.matrix() %&gt;% 
-  as.table() %&gt;% 
-  epi.2by2(method = &quot;cohort.time&quot;,
-           units = 100,
-           outcome = &quot;as.columns&quot;)</code></pre>
-<pre><code>##              Outcome +    Time at risk        Inc rate *
-## Exposed +            8             680              1.18
-## Exposed -            3             262              1.15
-## Total               11             942              1.17
-## 
-## Point estimates and 95% CIs:
-## -------------------------------------------------------------------
-## Inc rate ratio                               1.03 (0.25, 6.01)
-## Attrib rate *                                0.03 (-1.50, 1.56)
-## Attrib rate in population *                  0.02 (-1.45, 1.49)
-## Attrib fraction in exposed (%)               2.67 (-305.51, 83.37)
-## Attrib fraction in population (%)            1.94 (-60.16, 59.49)
-## -------------------------------------------------------------------
-##  Wald confidence limits
-##  CI: confidence interval
-##  * Outcomes per 100 units of population time at risk</code></pre>
+<h3>4.6. Compare the incidence rates among exposed and unexposed participants with repeated positive results</h3>
+<p><strong>Quiz:</strong> Compute incidence rate ratio and 95% CI using <code>s8</code>.</p>
+<pre class="r"><code>#</code></pre>
 </div>
 </div>
 <div id="equal-follow-up-interval" class="section level2">
-<h2>Equal follow-up interval</h2>
-<pre class="r"><code># For dataset with equal fullow-up intervals ------------------
-
-# Convert long to wide and remove patients with first positive ------------
-
-dat_e_1 &lt;- dat_e %&gt;%
+<h2>5. Equal follow-up interval</h2>
+<p>The operations described above can also be used to manage datasets with equal follow-up interval. These data are more structured compared to those with unequal follow-up intervals. It means that follow-up dates and results for each follow-up instance can be easily pivoted to one column per instance and one row per participant. This makes filtering rows by dates and results much easier.</p>
+<pre class="r"><code>dat_e_1 &lt;- dat_e %&gt;%
   pivot_wider(names_from = fu,
               values_from = c(d, result)) %&gt;%
 
   # Remove patients with a positive result at the first follow-up
-  filter(result_1 != &quot;pos&quot;)</code></pre>
+  filter(result_1 != &quot;pos&quot;)
+
+head(dat_e_1)</code></pre>
+<pre><code>## # A tibble: 6 x 22
+##      id exposed d_1        d_2        d_3        d_4        d_5       
+##   &lt;dbl&gt;   &lt;dbl&gt; &lt;date&gt;     &lt;date&gt;     &lt;date&gt;     &lt;date&gt;     &lt;date&gt;    
+## 1     1       0 2011-12-26 2011-12-27 2011-12-28 2011-12-29 2011-12-30
+## 2     2       0 2012-02-15 2012-02-16 2012-02-17 2012-02-18 2012-02-19
+## 3     4       1 2012-02-05 2012-02-06 2012-02-07 2012-02-08 2012-02-09
+## 4     6       1 2011-12-30 2011-12-31 2012-01-01 2012-01-02 2012-01-03
+## 5     7       0 2012-02-26 2012-02-27 2012-02-28 2012-02-29 2012-03-01
+## 6     9       0 2012-03-02 2012-03-03 2012-03-04 2012-03-05 2012-03-06
+## # ... with 15 more variables: d_6 &lt;date&gt;, d_7 &lt;date&gt;, d_8 &lt;date&gt;, d_9 &lt;date&gt;,
+## #   d_10 &lt;date&gt;, result_1 &lt;chr&gt;, result_2 &lt;chr&gt;, result_3 &lt;chr&gt;,
+## #   result_4 &lt;chr&gt;, result_5 &lt;chr&gt;, result_6 &lt;chr&gt;, result_7 &lt;chr&gt;,
+## #   result_8 &lt;chr&gt;, result_9 &lt;chr&gt;, result_10 &lt;chr&gt;</code></pre>
+<p>Note that it is one row per participant and that follow-up dates and results are in structured in columns with one columns for one follow-up instance.</p>
+</div>
+<div id="conclusion" class="section level2">
+<h2>6. Conclusion</h2>
+<p>In this tutorial, we focused on data management and also cover some basic epidemiological analysis of time-to-event data. We learned some useful functions and used them to work through some examples using fake datasets. While these examples are useful, real life problems are obviously different and more complex. Chances are there is not a single function or a set of functions that are perfectly tailored for your needs. So, it is important to understand the logic and reasons behind each step so that you can use these basic building blocks to tackle more complex problems.</p>
 <p><br /></p>
 <p><strong>Session info (for reproducibility)</strong></p>
 <pre class="r"><code>xfun::session_info()</code></pre>

@@ -12,6 +12,8 @@ The **analysis** directory contains:
 - [:file\_folder: code](/code): Analysis code files (`.R` or `.Rmd`)
 - [:file\_folder: figures](/figures): Plots and other illustrations
 
+Solutions to the exercises can be found [here](https://bit.ly/3iErdF8).
+
 ## Lab
 
 [Singapore SLING](http://blog.nus.edu.sg/singaporesling/)  

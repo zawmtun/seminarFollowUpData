@@ -85,7 +85,13 @@ y[cumany(y == 6)]
 
 ```{r}
 # Hint: use "!" (NOT operator)
+x
+!cumany(x == 6)
+x[!cumany(x == 6)]
 
+y
+!cumany(y == 6)
+y[!cumany(x == 6)]
 ```
 
 ### 2.3. Compare a value with one before or after it
@@ -491,7 +497,16 @@ s8 <- dat_ue_1 %>%
 **Quiz:** Compute incidence rate ratio and 95% CI using `s8`.
 
 ```{r}
-#
+s8 %>% 
+  group_by(exposed) %>% 
+  summarise(pos = sum(to_res == "pos"),
+            fu = sum(duration)) %>% 
+  column_to_rownames("exposed") %>% 
+  as.matrix() %>% 
+  as.table() %>% 
+  epi.2by2(method = "cohort.time",
+           units = 100,
+           outcome = "as.columns")
 ```
 
 ## 5. Equal follow-up interval
