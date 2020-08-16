@@ -372,7 +372,7 @@ head(readRDS(here::here("data", "derived_data", "repeated_positive.rds")), 5)
 
 We do it in a series of steps. These are a little bit tricky. Please pay attention to the changes in each step. You may need to view the dataset after executing each step.  
 
-> A useful trick: In RStudio, view the dataset by clicking on the dataframe name while pressing Control key on your keyboard.   
+> A useful trick: In RStudio, view the dataset by clicking on the dataframe name in your script file while pressing Control key on your keyboard.   
 
 - **Step 1:** Capture the sequence of results - Compare the current result with a previous one using `lag()`. This produce a logical vector which is then passed to `cumsum()`.
 
