@@ -18,7 +18,7 @@ You can download all files and data related to this tutorial from [my GitHub rep
 
 Throughout the tutorial, function calls are denoted with a pair of parentheses at the end. For example, `sum()`. Packages are marked within a pair of curly brackets. For example, `{dplyr}`. The code can be found in gray boxes. The white boxes with each row preceded by `##` are the outputs of the code.   
 
-**Pre-requisite:** I assume you are familiar with the basics of R and `{dplyr}` package. If you want to learn more about R basics and `{dplyr}`, you can take a look at Chapter 3, 4, and 5 of the online book [R for Data Science](https://r4ds.had.co.nz/) by Garrett Grolemund and Hadley Wickham.  
+**Pre-requisite:** I assume you are familiar with the basics of R and `{dplyr}` package. If you want to learn more about these, Chapter 3, 4, and 5 of the online book [R for Data Science](https://r4ds.had.co.nz/) by Garrett Grolemund and Hadley Wickham are helpful.  
 
 We will use five packages in this tutorial. The code below will automatically load necessary packages. It will install the packages automatically if not found in the system.  
 
