@@ -336,7 +336,7 @@ We do it in a series of steps. These are a little bit tricky. Please pay attenti
 
 ```
 
-- **Step 7:** The last row becomes redundant. So, I remove it using `slice(n())`. Then, only keep the necessary columns.
+- **Step 7:** The last row becomes redundant. So, I remove it using `slice(-n())`. Then, only keep the necessary columns.
 
 ```{r}
 # Reminder: Grouped by id

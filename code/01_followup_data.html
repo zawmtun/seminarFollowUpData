@@ -920,7 +920,7 @@ head(s6, 10)</code></pre>
 ## 10     2       0 2012-06-17     8 neg    FALSE     5 2012-06-17 neg      &lt;NA&gt;  
 ## # ... with 2 more variables: d2 &lt;date&gt;, persondays &lt;dbl&gt;</code></pre>
 <ul>
-<li><strong>Step 7:</strong> The last row becomes redundant. So, I remove it using <code>slice(n())</code>. Then, only keep the necessary columns.</li>
+<li><strong>Step 7:</strong> The last row becomes redundant. So, I remove it using <code>slice(-n())</code>. Then, only keep the necessary columns.</li>
 </ul>
 <pre class="r"><code># Reminder: Grouped by id
 s7 &lt;- s6 %&gt;%

@@ -450,7 +450,7 @@ s6 <- s5 %>%
 head(s6, 10)
 ```
 
-- **Step 7:** The last row becomes redundant. So, I remove it using `slice(n())`. Then, only keep the necessary columns.
+- **Step 7:** The last row becomes redundant. So, I remove it using `slice(-n())`. Then, only keep the necessary columns.
 
 ```{r}
 # Reminder: Grouped by id
