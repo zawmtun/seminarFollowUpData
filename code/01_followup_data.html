@@ -579,21 +579,24 @@ dat_ue_1 &lt;- dat_ue %&gt;%
 <p>We first call <code>result == &quot;pos&quot;</code> which returns a logical vector. When we pass the vector to <code>cumsum()</code>, it was coerced into integer (<code>FALSE</code> to <code>0</code> and <code>TRUE</code> to <code>1</code>) before calculating cumulative sum. Rows with cumulative sum of one indicates both the first positive result and the negative results following it. We need to filter out the latter.</p>
 <pre class="r"><code>dat_ue_2 &lt;- dat_ue_1 %&gt;%
   group_by(id) %&gt;%
-  mutate(flag = cumsum(result == &quot;pos&quot;)) %&gt;% 
-  filter(flag &lt;= 1) %&gt;%
-  filter(!(flag == 1 &amp; result == &quot;neg&quot;)) %&gt;% 
+  mutate(flag1 = lag(result, default = &quot;impossible&quot;),
+         flag2 = result != flag1,
+         flag3 = cumsum(flag2)) %&gt;% 
+  group_by(id, flag3) %&gt;% 
+  mutate(n = row_number()) %&gt;% 
+  filter(flag3 == 1 | (flag3 == 2 &amp; n == 1)) %&gt;%
   ungroup()
 
 head(dat_ue_2)</code></pre>
-<pre><code>## # A tibble: 6 x 6
-##      id exposed d             fu result  flag
-##   &lt;dbl&gt;   &lt;dbl&gt; &lt;date&gt;     &lt;dbl&gt; &lt;chr&gt;  &lt;int&gt;
-## 1     1       0 2012-03-03     1 neg        0
-## 2     1       0 2012-03-13     2 pos        1
-## 3     2       0 2012-02-14     1 neg        0
-## 4     2       0 2012-02-24     2 pos        1
-## 5     4       1 2012-02-29     1 neg        0
-## 6     4       1 2012-03-28     2 neg        0</code></pre>
+<pre><code>## # A tibble: 6 x 9
+##      id exposed d             fu result flag1      flag2 flag3     n
+##   &lt;dbl&gt;   &lt;dbl&gt; &lt;date&gt;     &lt;dbl&gt; &lt;chr&gt;  &lt;chr&gt;      &lt;lgl&gt; &lt;int&gt; &lt;int&gt;
+## 1     1       0 2012-03-03     1 neg    impossible TRUE      1     1
+## 2     1       0 2012-03-13     2 pos    neg        TRUE      2     1
+## 3     2       0 2012-02-14     1 neg    impossible TRUE      1     1
+## 4     2       0 2012-02-24     2 pos    neg        TRUE      2     1
+## 5     4       1 2012-02-29     1 neg    impossible TRUE      1     1
+## 6     4       1 2012-03-28     2 neg    neg        FALSE     1     2</code></pre>
 <p>Notice that the follow-up of participant 1 and 2 ends with the first positive result?</p>
 </div>
 <div id="compute-person-days-at-risk-to-the-first-positive-result" class="section level3">
@@ -606,23 +609,23 @@ head(dat_ue_2)</code></pre>
          result = max(result == &quot;pos&quot;)) %&gt;%
   ungroup() %&gt;% 
   distinct(id, exposed, start, end, result) %&gt;%
-  mutate(duration = as.double(difftime(end, start, units = &quot;days&quot;)))
+  mutate(persondays = as.double(difftime(end, start, units = &quot;days&quot;)))
 
 dat_ue_3</code></pre>
 <pre><code>## # A tibble: 11 x 6
-##       id exposed result start      end        duration
-##    &lt;dbl&gt;   &lt;dbl&gt;  &lt;int&gt; &lt;date&gt;     &lt;date&gt;        &lt;dbl&gt;
-##  1     1       0      1 2012-03-03 2012-03-13       10
-##  2     2       0      1 2012-02-14 2012-02-24       10
-##  3     4       1      0 2012-02-29 2012-05-01       62
-##  4     6       1      1 2012-02-08 2012-05-05       87
-##  5     7       0      1 2012-02-20 2012-03-17       26
-##  6     9       0      0 2012-01-19 2012-03-01       42
-##  7    10       0      0 2012-01-22 2012-06-15      145
-##  8    11       0      0 2012-01-24 2012-05-17      114
-##  9    12       0      1 2012-01-13 2012-03-10       57
-## 10    13       1      1 2012-01-02 2012-02-20       49
-## 11    14       0      1 2012-03-10 2012-05-25       76</code></pre>
+##       id exposed result start      end        persondays
+##    &lt;dbl&gt;   &lt;dbl&gt;  &lt;int&gt; &lt;date&gt;     &lt;date&gt;          &lt;dbl&gt;
+##  1     1       0      1 2012-03-03 2012-03-13         10
+##  2     2       0      1 2012-02-14 2012-02-24         10
+##  3     4       1      0 2012-02-29 2012-05-01         62
+##  4     6       1      1 2012-02-08 2012-05-05         87
+##  5     7       0      1 2012-02-20 2012-03-17         26
+##  6     9       0      0 2012-01-19 2012-03-01         42
+##  7    10       0      0 2012-01-22 2012-06-15        145
+##  8    11       0      0 2012-01-24 2012-05-17        114
+##  9    12       0      1 2012-01-13 2012-03-10         57
+## 10    13       1      1 2012-01-02 2012-02-20         49
+## 11    14       0      1 2012-03-10 2012-05-25         76</code></pre>
 <p>At this point, the dataset only contains one row per participant.</p>
 </div>
 <div id="compare-incidence-rates-for-exposed-and-unexposed" class="section level3">
@@ -643,7 +646,7 @@ class(dat)</code></pre>
 <pre class="r"><code>tab_df &lt;- dat_ue_3 %&gt;% 
   group_by(exposed) %&gt;% 
   summarise(pos = sum(result),
-            fu = sum(duration))
+            fu = sum(persondays))
 
 tab_df</code></pre>
 <pre><code>## # A tibble: 2 x 3
@@ -714,7 +717,7 @@ tab_epi_tidy</code></pre>
 <pre class="r"><code>tab_epi &lt;- dat_ue_3 %&gt;% 
   group_by(exposed) %&gt;% 
   summarise(pos = sum(result),
-            fu = sum(duration)) %&gt;% 
+            fu = sum(persondays)) %&gt;% 
   column_to_rownames(&quot;exposed&quot;) %&gt;% 
   as.matrix() %&gt;% 
   as.table() %&gt;% 
@@ -898,7 +901,7 @@ head(s5, 10)</code></pre>
 <pre class="r"><code># Grouped by id
 s6 &lt;- s5 %&gt;%
   mutate(d2 = lead(d1),
-         duration = as.double(difftime(d2, d1, units = &quot;days&quot;)))
+         persondays = as.double(difftime(d2, d1, units = &quot;days&quot;)))
 
 head(s6, 10)</code></pre>
 <pre><code>## # A tibble: 10 x 12
@@ -915,28 +918,28 @@ head(s6, 10)</code></pre>
 ##  8     2       0 2012-03-24     4 pos    TRUE      4 2012-03-24 pos      neg   
 ##  9     2       0 2012-05-08     6 neg    TRUE      5 2012-05-08 neg      neg   
 ## 10     2       0 2012-06-17     8 neg    FALSE     5 2012-06-17 neg      &lt;NA&gt;  
-## # ... with 2 more variables: d2 &lt;date&gt;, duration &lt;dbl&gt;</code></pre>
+## # ... with 2 more variables: d2 &lt;date&gt;, persondays &lt;dbl&gt;</code></pre>
 <ul>
 <li><strong>Step 7:</strong> The last row becomes redundant. So, I remove it using <code>slice(n())</code>. Then, only keep the necessary columns.</li>
 </ul>
 <pre class="r"><code># Reminder: Grouped by id
 s7 &lt;- s6 %&gt;%
   slice(-n()) %&gt;% 
-  select(id, exposed, d1, d2, from_res, to_res, duration)
+  select(id, exposed, d1, d2, from_res, to_res, persondays)
 
 head(s7, 8)</code></pre>
 <pre><code>## # A tibble: 8 x 7
 ## # Groups:   id [2]
-##      id exposed d1         d2         from_res to_res duration
-##   &lt;dbl&gt;   &lt;dbl&gt; &lt;date&gt;     &lt;date&gt;     &lt;chr&gt;    &lt;chr&gt;     &lt;dbl&gt;
-## 1     1       0 2012-03-03 2012-03-13 neg      pos          10
-## 2     1       0 2012-03-13 2012-04-27 pos      neg          45
-## 3     1       0 2012-04-27 2012-06-18 neg      neg          52
-## 4     2       0 2012-02-14 2012-02-24 neg      pos          10
-## 5     2       0 2012-02-24 2012-03-01 pos      neg           6
-## 6     2       0 2012-03-01 2012-03-24 neg      pos          23
-## 7     2       0 2012-03-24 2012-05-08 pos      neg          45
-## 8     2       0 2012-05-08 2012-06-17 neg      neg          40</code></pre>
+##      id exposed d1         d2         from_res to_res persondays
+##   &lt;dbl&gt;   &lt;dbl&gt; &lt;date&gt;     &lt;date&gt;     &lt;chr&gt;    &lt;chr&gt;       &lt;dbl&gt;
+## 1     1       0 2012-03-03 2012-03-13 neg      pos            10
+## 2     1       0 2012-03-13 2012-04-27 pos      neg            45
+## 3     1       0 2012-04-27 2012-06-18 neg      neg            52
+## 4     2       0 2012-02-14 2012-02-24 neg      pos            10
+## 5     2       0 2012-02-24 2012-03-01 pos      neg             6
+## 6     2       0 2012-03-01 2012-03-24 neg      pos            23
+## 7     2       0 2012-03-24 2012-05-08 pos      neg            45
+## 8     2       0 2012-05-08 2012-06-17 neg      neg            40</code></pre>
 <ul>
 <li><strong>Step 8:</strong> Now, remove the rows in which results changed from positive to negative as their follow-up time will not be counted in the person-days at risk.</li>
 </ul>
@@ -947,13 +950,13 @@ s8 &lt;- s7 %&gt;%
 
 head(s8, 5)</code></pre>
 <pre><code>## # A tibble: 5 x 7
-##      id exposed d1         d2         from_res to_res duration
-##   &lt;dbl&gt;   &lt;dbl&gt; &lt;date&gt;     &lt;date&gt;     &lt;chr&gt;    &lt;chr&gt;     &lt;dbl&gt;
-## 1     1       0 2012-03-03 2012-03-13 neg      pos          10
-## 2     1       0 2012-04-27 2012-06-18 neg      neg          52
-## 3     2       0 2012-02-14 2012-02-24 neg      pos          10
-## 4     2       0 2012-03-01 2012-03-24 neg      pos          23
-## 5     2       0 2012-05-08 2012-06-17 neg      neg          40</code></pre>
+##      id exposed d1         d2         from_res to_res persondays
+##   &lt;dbl&gt;   &lt;dbl&gt; &lt;date&gt;     &lt;date&gt;     &lt;chr&gt;    &lt;chr&gt;       &lt;dbl&gt;
+## 1     1       0 2012-03-03 2012-03-13 neg      pos            10
+## 2     1       0 2012-04-27 2012-06-18 neg      neg            52
+## 3     2       0 2012-02-14 2012-02-24 neg      pos            10
+## 4     2       0 2012-03-01 2012-03-24 neg      pos            23
+## 5     2       0 2012-05-08 2012-06-17 neg      neg            40</code></pre>
 <p>It is easier to understand these steps if they are put together in a single chain. Here it is.</p>
 <pre class="r"><code>s8 &lt;- dat_ue_1 %&gt;%
   group_by(id) %&gt;%
@@ -970,9 +973,9 @@ head(s8, 5)</code></pre>
   mutate(from_res = result,
          to_res = lead(result)) %&gt;%
   mutate(d2 = lead(d1),
-         duration = as.double(difftime(d2, d1, units = &quot;days&quot;))) %&gt;%
+         persondays = as.double(difftime(d2, d1, units = &quot;days&quot;))) %&gt;%
   slice(-n()) %&gt;% 
-  select(id, exposed, d1, d2, from_res, to_res, duration) %&gt;%
+  select(id, exposed, d1, d2, from_res, to_res, persondays) %&gt;%
   filter(!(from_res == &quot;pos&quot; &amp; to_res == &quot;neg&quot;)) %&gt;% 
   ungroup()</code></pre>
 </div>

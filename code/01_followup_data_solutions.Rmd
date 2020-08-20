@@ -246,9 +246,12 @@ We first call `result == "pos"` which returns a logical vector. When we pass the
 ```{r}
 dat_ue_2 <- dat_ue_1 %>%
   group_by(id) %>%
-  mutate(flag = cumsum(result == "pos")) %>% 
-  filter(flag <= 1) %>%
-  filter(!(flag == 1 & result == "neg")) %>% 
+  mutate(flag1 = lag(result, default = "impossible"),
+         flag2 = result != flag1,
+         flag3 = cumsum(flag2)) %>% 
+  group_by(id, flag3) %>% 
+  mutate(n = row_number()) %>% 
+  filter(flag3 == 1 | (flag3 == 2 & n == 1)) %>%
   ungroup()
 
 head(dat_ue_2)

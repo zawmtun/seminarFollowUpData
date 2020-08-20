@@ -240,9 +240,12 @@ We first call `result == "pos"` which returns a logical vector. When we pass the
 ```{r}
 dat_ue_2 <- dat_ue_1 %>%
   group_by(id) %>%
-  mutate(flag = cumsum(result == "pos")) %>% 
-  filter(flag <= 1) %>%
-  filter(!(flag == 1 & result == "neg")) %>% 
+  mutate(flag1 = lag(result, default = "impossible"),
+         flag2 = result != flag1,
+         flag3 = cumsum(flag2)) %>% 
+  group_by(id, flag3) %>% 
+  mutate(n = row_number()) %>% 
+  filter(flag3 == 1 | (flag3 == 2 & n == 1)) %>%
   ungroup()
 
 head(dat_ue_2)
@@ -262,7 +265,7 @@ dat_ue_3 <- dat_ue_2 %>%
          result = max(result == "pos")) %>%
   ungroup() %>% 
   distinct(id, exposed, start, end, result) %>%
-  mutate(duration = as.double(difftime(end, start, units = "days")))
+  mutate(persondays = as.double(difftime(end, start, units = "days")))
 
 dat_ue_3
 ```
@@ -289,7 +292,7 @@ Now, let's create a similar contingency table using `summarise()` from `{dplyr}`
 tab_df <- dat_ue_3 %>% 
   group_by(exposed) %>% 
   summarise(pos = sum(result),
-            fu = sum(duration))
+            fu = sum(persondays))
 
 tab_df
 ```
@@ -345,7 +348,7 @@ I will close this section by demonstrating that the above steps can be chained u
 tab_epi <- dat_ue_3 %>% 
   group_by(exposed) %>% 
   summarise(pos = sum(result),
-            fu = sum(duration)) %>% 
+            fu = sum(persondays)) %>% 
   column_to_rownames("exposed") %>% 
   as.matrix() %>% 
   as.table() %>% 
@@ -436,7 +439,7 @@ head(s5, 10)
 # Grouped by id
 s6 <- s5 %>%
   mutate(d2 = lead(d1),
-         duration = as.double(difftime(d2, d1, units = "days")))
+         persondays = as.double(difftime(d2, d1, units = "days")))
 
 head(s6, 10)
 ```
@@ -447,7 +450,7 @@ head(s6, 10)
 # Reminder: Grouped by id
 s7 <- s6 %>%
   slice(-n()) %>% 
-  select(id, exposed, d1, d2, from_res, to_res, duration)
+  select(id, exposed, d1, d2, from_res, to_res, persondays)
 
 head(s7, 8)
 ```
@@ -481,9 +484,9 @@ s8 <- dat_ue_1 %>%
   mutate(from_res = result,
          to_res = lead(result)) %>%
   mutate(d2 = lead(d1),
-         duration = as.double(difftime(d2, d1, units = "days"))) %>%
+         persondays = as.double(difftime(d2, d1, units = "days"))) %>%
   slice(-n()) %>% 
-  select(id, exposed, d1, d2, from_res, to_res, duration) %>%
+  select(id, exposed, d1, d2, from_res, to_res, persondays) %>%
   filter(!(from_res == "pos" & to_res == "neg")) %>% 
   ungroup()
 ```
