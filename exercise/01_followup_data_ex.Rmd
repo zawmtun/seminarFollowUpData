@@ -29,11 +29,12 @@ pkgs <- c(
   "tibble",
   "epiR",
   "broom",
-  "here"
+  "here",
+  "readr"
 )
 
-invisible(sapply(pkgs, function(.) if (!requireNamespace(.)) install.packages(.)))
-invisible(sapply(pkgs, library, character.only = TRUE))
+invisible(lapply(pkgs, function(.) if (!requireNamespace(.)) install.packages(.)))
+invisible(lapply(pkgs, library, character.only = TRUE))
 ```
 
 ## 1. Objectives

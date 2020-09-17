@@ -28,7 +28,9 @@ pkgs <- c(
   "tidyr",
   "tibble",
   "epiR",
-  "broom"
+  "broom",
+  "readr",
+  "here"
 )
 
 invisible(sapply(pkgs, function(.) if (!requireNamespace(.)) install.packages(.)))
