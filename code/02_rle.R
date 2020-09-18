@@ -1,5 +1,5 @@
 # -------------------------------------------------------------------------
-# 01_rle.R
+# 02_rle.R
 #
 # Author: Zaw Myo Tun
 # Date: 17 Sep 2020
@@ -18,7 +18,11 @@ a
 x <- rle(a)
 x
 inverse.rle(x)
-identical(b, inverse.rle(y))
+identical(a, inverse.rle(x))
+identical(a, x)
+
+y <- rle(a)
+identical(x, y)
 
 b
 y <- rle(b)
@@ -75,3 +79,9 @@ dat_ue
 dat_ue %>%
   group_by(id) %>%
   mutate(s = my_seq(result))
+
+# Caveat
+
+z <- c(0, 1, 0, 0, 1, NA, NA, 1, 0)
+z[is.na(z)] <- 9
+rle(z)
